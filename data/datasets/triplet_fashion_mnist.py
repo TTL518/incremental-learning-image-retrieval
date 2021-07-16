@@ -3,7 +3,6 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import ToTensor
 from torchvision.datasets import FashionMNIST
 from torchvision import transforms
-from PIL import Image
 
 class TripletFashionMnist(Dataset):
     def __init__(self, train=True, transform=ToTensor(), target_transform=None):
@@ -14,6 +13,11 @@ class TripletFashionMnist(Dataset):
         self.train = train
         self.transform = transform
         self.target_transform = target_transform
+
+        if(train):
+            print("Training dataset shape", self.data.shape)
+        else:
+            print("Test dataset shape", self.data.shape)
 
     def __len__(self):
         return len(self.data)
@@ -33,37 +37,21 @@ class TripletFashionMnist(Dataset):
             negative_random_idx = randint(0, negative_img_list.size(0),(1,))
             negative_img = negative_img_list[negative_random_idx].view((28,28))
 
-            #print(anchor_img.shape)
-            #print(negative_img.shape)
-            #print(positive_img.shape)
-
-            anchor_img = Image.fromarray(anchor_img.numpy(), mode='L')
-            positive_img = Image.fromarray(positive_img.numpy(), mode='L')
-            negative_img = Image.fromarray(negative_img.numpy(), mode='L')
-
-            if self.transform is not None:
-                anchor_img = self.transform(anchor_img)
-                positive_img = self.transform(positive_img)
-                negative_img = self.transform(negative_img)
-            
-            
             return anchor_img, anchor_label, positive_img, negative_img
         else:
-            if self.transform is not None:
-                anchor_img = self.transform(anchor_img)
-          
             return anchor_img, anchor_label
 
 if __name__ == "__main__":
     tfdataset_train =  TripletFashionMnist(train=True)
     tfdataset_test =  TripletFashionMnist( train=False)
 
-    fashionDataset = FashionMNIST("data", train=True, download=True, transform=transforms.ToTensor())
+    fashionDataset = FashionMNIST("data", train=False, download=True, transform=transforms.ToTensor())
     
-    loader = DataLoader(tfdataset_train, 64)
+    loader = DataLoader(tfdataset_test, 2)
 
     examples = enumerate(loader)
-    batch_idx, (anchor_img, anchor_label, positive_img, negative_img) = next(examples)
+    #batch_idx, (anchor_img, anchor_label, positive_img, negative_img) = next(examples)
+    batch_idx, (anchor_img, anchor_label) = next(examples)
     print(batch_idx)
-    print(anchor_img[0].shape)
+    print(anchor_img.shape)
 
