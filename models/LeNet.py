@@ -46,8 +46,8 @@ class LeNet_PP(nn.Module):
         x = x.view(-1, 128*3*3)
         x = self.prelu_fc1(self.fc1(x))
         y = self.inc_classifier(x)
-        
-        return x, y
+
+        return y, x
 
 def test():
     net = LeNet_PP(2)
