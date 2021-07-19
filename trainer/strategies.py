@@ -4,7 +4,7 @@ from torch.nn import Module, CrossEntropyLoss
 from torch.optim import Optimizer
 from trainer.plugins import ILFGIR_plugin
 
-from avalanche.training import default_logger
+from avalanche.training.plugins.evaluation import default_logger
 from avalanche.training.plugins import StrategyPlugin, EvaluationPlugin
 from avalanche.training.strategies import BaseStrategy, Naive
 
