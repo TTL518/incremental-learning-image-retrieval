@@ -9,13 +9,14 @@ class RecallAtK(Metric[float]):
     """
     This metric will return a `float` value
     """
-    def __init__(self):
+    def __init__(self, k=1):
         """
         Initialize the metric
         """
+        self.k = k
         self.recall_at_k = 0
 
-    def update(self, distances_matrix, query_labels, gallery_labels, k=1, is_equal_query=True ):
+    def update(self, distances_matrix, query_labels, gallery_labels, is_equal_query=True ):
         """
         Update metric value
         """
@@ -33,16 +34,16 @@ class RecallAtK(Metric[float]):
             neg_sim = distances_matrix[i][gallery_labels != query_labels[i]]
 
             thresh = np.sort(pos_sim)[1] if is_equal_query else np.max(pos_sim)
-            print("Thresh: ", thresh)
-            print("Sum: ", np.sum(neg_sim < thresh))
-            if np.sum(neg_sim < thresh) >= k:
+            #print("Thresh: ", thresh)
+            #print("Sum: ", np.sum(neg_sim < thresh))
+            if np.sum(neg_sim < thresh) >= self.k:
                 match_counter = match_counter
             else:
                 match_counter += 1
         print(match_counter)
         self.recall_at_k = float(match_counter) / l
 
-    def update_II(self, distances_matrix, query_labels, gallery_labels, k=1, is_equal_query=True ):
+    def update_II(self, distances_matrix, query_labels, gallery_labels, is_equal_query=True ):
         """
         Update metric value
         """
@@ -59,13 +60,13 @@ class RecallAtK(Metric[float]):
         for i in range(l):
             tot_relevant += (np.sum(gallery_labels == query_labels[i]) - 1) if is_equal_query else np.sum(gallery_labels == query_labels[i])
             print("Tot relevant ", tot_relevant)
-            top_k_indices = np.argsort(distances_matrix[i])[1:k+1] if is_equal_query else np.argsort(distances_matrix[i])[:k]
+            top_k_indices = np.argsort(distances_matrix[i])[1:self.k+1] if is_equal_query else np.argsort(distances_matrix[i])[:self.k]
             print("Top k indices ",top_k_indices)
             print(gallery_labels[top_k_indices])
             relevant_in_top_k += np.sum(gallery_labels[top_k_indices] == query_labels[i])
             print("#Relevant in top k ",relevant_in_top_k)
 
-        self.precision_at_k = relevant_in_top_k/(k*l)
+        self.precision_at_k = relevant_in_top_k/(self.k*l)
         self.recall_at_k = relevant_in_top_k/tot_relevant
 
     def result(self) -> float:
@@ -76,14 +77,14 @@ class RecallAtK(Metric[float]):
 
     def reset(self):
         """
-        Reset the metric
+        Reset the metric value
         """
         self.recall_at_k = 0
 
 if __name__ == "__main__":
     
     
-    #metric = RecallAtK()
+    metric = RecallAtK()
 
     distances = np.array([
                             [0.0, 0.1, 0.2, 0.5, 0.3, 1.1, 1.2, 1.1, 1.2, 1.4],
@@ -98,4 +99,4 @@ if __name__ == "__main__":
                             [1.0, 1.1, 1.2, 1.5, 1.2, 0.4, 0.2, 0.1, 0.2, 0.0],
                         ])
     labels = np.array([1,1,1,2,2,1,1,2,2,2])
-    print(update(distances, labels, labels, 6, True))
+    print(metric.update(distances, labels, labels, 6, True))

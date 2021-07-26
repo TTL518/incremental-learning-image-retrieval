@@ -98,6 +98,7 @@ class ResNet(nn.Module):
         #out = self.linear(out)
         logits = self.inc_classifier(flattened_features)
         #print("shape logits", logits.shape)
+        print(logits)
         return logits , flattened_features
 
 

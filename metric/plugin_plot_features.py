@@ -1,14 +1,12 @@
 from avalanche.evaluation import PluginMetric
 from avalanche.evaluation.metric_results import MetricValue, MetricResult
 import numpy as np
-
-from metric.recall_at_k import RecallAtK
-from retrieval.nearest_neighbor import NearestNeighborDistanceMetric
+from utils import create_features_plot
 
 
-class RecallAtKPlugin(PluginMetric[float]):
+class PlotFeaturesPlugin(PluginMetric[float]):
     """
-    This metric plugin will return a `float` value after
+    This plugin will return a list of Image after
     each evaluation experience
     """
 
@@ -18,10 +16,8 @@ class RecallAtKPlugin(PluginMetric[float]):
         """
         super().__init__()
 
-        self._NN = NearestNeighborDistanceMetric("cosine")
-        self._recall_AT_1= RecallAtK(k=1)
-        self._recallK_values_list = []
-        # current x values for the metric curve
+        self.features_list=[]
+        self.labels = []
         self.x_coord = 0
 
 
@@ -29,38 +25,51 @@ class RecallAtKPlugin(PluginMetric[float]):
         """
         Reset the metric
         """
-        self._recallK_values_list = []
-        self._recall_AT_1.reset()
+        self.features_list = []
+        self.labels_list = []
 
     def result(self) -> float:
         """
         Emit the result
         """
-        return self._recall_AT_1.result()
+        return None
 
     
     def after_eval_iteration(self, strategy: 'PluggableStrategy') -> None:
         """
-        Update the accuracy metric with the current
-        predictions and targets
+        Update the list of features with current
+        batch features
         """
-        print("mb_x shape: ", strategy.mb_x.shape)
-        print("mb_y shape: ", strategy.mb_y.shape)
-        print("mb_output shape: ", strategy.mb_output.shape)
+
         print("out_flattened_feature shape: ", strategy.out_flattened_features.shape)
+        
+        if(strategy.out_flattened_features.is_cuda):
+                out_flattened_features = strategy.out_flattened_features.detach().cpu().numpy()
+                labels = strategy.mb_y.detach().cpu().numpy()
+                self.features_list.append(out_flattened_features)
+                self.labels_list.append(labels)
 
-        if(strategy.out_flattened_features.is_cuda or strategy.mb_y.is_cuda):
-                out_flattened_features = strategy.out_flattened_features.detach().cpu()
-                mb_y = strategy.mb_y.detach().cpu()
-
-        distances_matrix = self._NN.distance(out_flattened_features, out_flattened_features)
-        self._recall_AT_1.update(distances_matrix, mb_y, mb_y, True )
-        self._recallK_values_list.append(self.result())
-
-        print("Recall@1: ",self.result())
         
 
-    
+    def before_eval_epoch(self, strategy: 'PluggableStrategy') -> None:
+        """
+        Reset the accuracy before the next experience begins
+        """
+        self.reset()
+
+    def after_eval_epoch(self, strategy: 'PluggableStrategy') -> 'MetricResult':
+        """
+        Emit the result
+        """
+        features = np.vstack(self.features_list)
+        labels = np.vstack(self.labels_list)
+
+        image = create_features_plot(features,labels)
+        self.x_coord += 1 # increment x value
+        name = "Features_plot_epoch"
+        return [MetricValue(self, name, image, self.x_coord)]
+
+    '''
     def before_eval_exp(self, strategy: 'PluggableStrategy') -> None:
         """
         Reset the accuracy before the next experience begins
@@ -77,6 +86,7 @@ class RecallAtKPlugin(PluginMetric[float]):
         self.x_coord += 1 # increment x value
         name = "Recall@"+"1"+"_Exp"
         return [MetricValue(self, name, value, self.x_coord)]
+    '''
 
     def __str__(self):
         """
