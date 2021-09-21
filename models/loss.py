@@ -3,9 +3,11 @@ import torch.nn.functional as F
 import torch
 from torch.autograd import Variable
 from functools import partial
+from sklearn.metrics import pairwise_distances
+import numpy as np
 
 
-def kd_loss(n_img, target_outputs, outputs, T=2):
+def kd_loss(n_img, out, prev_out, T=2):
     """
     Compute the knowledge-distillation (KD) loss with soft targets.
 
@@ -28,10 +30,14 @@ def kd_loss(n_img, target_outputs, outputs, T=2):
     NOTE: the KL Divergence for PyTorch comparing the softmaxs of target_outputs
     and outputs expects the input tensor to be log probabilities! 
     """
+    log_p = torch.log_softmax(out / T, dim=1)
+    q = torch.softmax(prev_out / T, dim=1)
+    res = torch.nn.functional.kl_div(log_p, q, reduction='none')
+    res = res.sum() / n_img
 
-    KD_loss = -1/n_img * nn.KLDivLoss()(F.log_softmax(outputs/T, dim=1), F.softmax(target_outputs/T, dim=1)) 
-
-    return KD_loss
+    #KD_loss = -1/n_img * nn.KLDivLoss((F.log_softmax(outputs/T, dim=1), F.softmax(target_outputs/T, dim=1)) , reduction=None)
+    
+    return res
 
 
 def pairwise_distance(x, y):
@@ -88,8 +94,11 @@ def gaussian_kernel_matrix(x, y, sigmas):
     beta = 1. / (2. * sigmas)
     dist = pairwise_distance(x, y).contiguous()
     dist_ = dist.view(1, -1)
+    #print(dist_.shape)
+    #print(beta.shape)
     exp_arg = torch.matmul(beta, dist_)
-
+    #print(exp_arg.shape)
+    #print(torch.sum(torch.exp(-exp_arg), 0).shape)
     return torch.sum(torch.exp(-exp_arg), 0).view_as(dist)
 
 def maximum_mean_discrepancy(x, y, kernel= gaussian_kernel_matrix): 
@@ -108,6 +117,8 @@ def maximum_mean_discrepancy(x, y, kernel= gaussian_kernel_matrix):
         Cost:
 
     """
+    #cost1 = kernel(x,x) + kernel(y,y) - 2*kernel(x,y)
+    #print((cost1)/(x.shape[0]**2))
 
     cost = torch.mean(kernel(x, x))
     cost += torch.mean(kernel(y, y))
@@ -154,10 +165,53 @@ def mmd_loss(source_features, target_features):
     return loss_value
 
 
+class MMD_loss(nn.Module):
+    def __init__(self, kernel_mul = 2.0, kernel_num = 5):
+        super(MMD_loss, self).__init__()
+        self.kernel_num = kernel_num
+        self.kernel_mul = kernel_mul
+        self.fix_sigma = None
+	
+    def guassian_kernel(self, source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
+        n_samples = int(source.size()[0])+int(target.size()[0])
+        total = torch.cat([source, target], dim=0)
+        total0 = total.unsqueeze(0).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
+        total1 = total.unsqueeze(1).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
+        L2_distance = ((total0-total1)**2).sum(2) 
+        if fix_sigma:
+            bandwidth = fix_sigma
+        else:
+            bandwidth = torch.sum(L2_distance.data) / (n_samples**2-n_samples)
+        bandwidth /= kernel_mul ** (kernel_num // 2)
+        bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
+        #print(bandwidth_list)
+        kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
+        return sum(kernel_val)
+
+    def forward(self, source, target):
+        batch_size = int(source.size()[0])
+        kernels = self.guassian_kernel(source, target, kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma)
+        XX = kernels[:batch_size, :batch_size]
+        YY = kernels[batch_size:, batch_size:]
+        XY = kernels[:batch_size, batch_size:]
+        YX = kernels[batch_size:, :batch_size]
+        loss = torch.mean(XX + YY - XY -YX)
+        return loss
+
+
 if __name__ == "__main__":
-    a = torch.tensor([[1., 2.], [1., 3.], [3., 3,]])
-    b = torch.tensor([[2., 2.], [2., 4.]])
+    a = torch.tensor([[2., 5.], [1., 3.], [3., 3]])
+    b = torch.tensor([[1., 2.], [3., 3.], [1., 3]])
+
+
+    #print(pairwise_distances(a.numpy(),b.numpy(),"euclidean")**2)
+    #print(pairwise_distance(a,b))
 
     print(mmd_loss(a,b))
+
+    #loss = MMD_loss(kernel_num=15)
+    #print(loss(a,b))
+
+    
 
     
