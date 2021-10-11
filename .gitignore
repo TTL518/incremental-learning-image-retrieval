@@ -10,6 +10,8 @@ events*
 *.pth
 *.tgz
 *.tar
+*.tar.gz
 prova*
 train1.py
-data/
+cifar-100-python
+attributes.txt
