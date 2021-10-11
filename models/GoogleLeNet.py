@@ -195,7 +195,7 @@ class GoogLeNet(nn.Module):
         x = self.dropout(x)
         y = self.fc(x)
         # N x 1000 (num_classes)
-        return y, x, aux2, aux1
+        return y, x # , aux2, aux1
 
     @torch.jit.unused
     def eager_outputs(self, x: Tensor, aux2: Tensor, aux1: Optional[Tensor]) -> GoogLeNetOutputs:

@@ -1,0 +1,5 @@
+avalanche
+torch
+neptune-client
+numpy
+scipy

@@ -20,6 +20,7 @@ class PlotFeaturesPlugin(PluginMetric[float]):
         self.labels_list = []
         self.x_coord = 0
         self.class_names = class_names
+        self.finalEval = False
 
 
     def reset(self) -> None:
@@ -29,6 +30,7 @@ class PlotFeaturesPlugin(PluginMetric[float]):
         #print("RESET plugin PLOT")
         self.features_list = []
         self.labels_list = []
+        self.finalEval = False
 
     def result(self) -> float:
         """
@@ -79,16 +81,16 @@ class PlotFeaturesPlugin(PluginMetric[float]):
         Update the list of features with current
         batch features
         """
-        
-        if(strategy.plugins[0].mb_out_flattened_features.is_cuda):
-                mb_out_flattened_features = strategy.plugins[0].mb_out_flattened_features.detach().cpu().numpy()
-                labels = strategy.mb_y.detach().cpu().numpy().reshape((-1,1))
-                #print("----SHAPES----")
-                #print(mb_out_flattened_features.shape)
-                #print(labels.shape)
-                self.features_list.append(mb_out_flattened_features)
-                self.labels_list.append(labels)
-        #else:
+        if self.finalEval:
+            if(strategy.plugins[0].mb_out_flattened_features.is_cuda):
+                    mb_out_flattened_features = strategy.plugins[0].mb_out_flattened_features.detach().cpu().numpy()
+                    labels = strategy.mb_y.detach().cpu().numpy().reshape((-1,1))
+                    #print("----SHAPES----")
+                    #print(mb_out_flattened_features.shape)
+                    #print(labels.shape)
+                    self.features_list.append(mb_out_flattened_features)
+                    self.labels_list.append(labels)
+            #else:
 
     def before_eval(self, strategy: 'PluggableStrategy') -> None:
         """
@@ -96,20 +98,23 @@ class PlotFeaturesPlugin(PluginMetric[float]):
         """
         #print("Befor eval exp")
         self.reset()
+        if strategy.epoch == strategy.train_epochs-1:
+            self.finalEval = True
 
     def after_eval(self, strategy: 'PluggableStrategy') -> 'MetricResult':
         """
         Emit the result
         """
-        #print("After eval exp")
-        features = np.vstack(self.features_list)
-        labels = np.vstack(self.labels_list)
-        #print("Creating features plot")
-        image = create_features_plot_plotly(features,labels, self.class_names)
-        #image = create_features_plot_matplot(features,labels, self.class_names)
-        self.x_coord += 1 # increment x value
-        name = "Eval_Features_plot_x_exp"+str(self.x_coord)
-        return [MetricValue(self, name, image, self.x_coord)]
+        if self.finalEval:
+            #print("After eval exp")
+            features = np.vstack(self.features_list)
+            labels = np.vstack(self.labels_list)
+            #print("Creating features plot")
+            image = create_features_plot_plotly(features,labels, self.class_names)
+            #image = create_features_plot_matplot(features,labels, self.class_names)
+            self.x_coord += 1 # increment x value
+            name = "Eval_Features_plot_x_exp"+str(self.x_coord)
+            return [MetricValue(self, name, image, self.x_coord)]
 
     def __str__(self):
         """

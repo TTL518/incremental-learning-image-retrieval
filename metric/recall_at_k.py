@@ -40,7 +40,7 @@ class RecallAtK(Metric[float]):
                 match_counter = match_counter
             else:
                 match_counter += 1
-        print(match_counter)
+        #print("Match_counter: ", match_counter)
         self.recall_at_k = float(match_counter) / l
 
     def update_II(self, distances_matrix, query_labels, gallery_labels, is_equal_query=True ):

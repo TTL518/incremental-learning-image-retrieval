@@ -5,6 +5,8 @@ import plotly.express as px
 import numpy as np
 import torch
 import pandas as pd
+import random
+import os
 
 def create_features_plot_matplot(np_features, np_labels, class_names):
     '''
@@ -63,6 +65,15 @@ def create_features_plot_plotly(np_features, np_labels, class_names):
     df["Class_name"] = [class_names[x.item()] for x in np_labels]
     fig = px.scatter(df, x="Feature1", y="Feature2", color="Class_name")
     return fig
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 if __name__ == "__main__":
 

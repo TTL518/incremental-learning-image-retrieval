@@ -3,6 +3,7 @@ from avalanche.evaluation import PluginMetric
 from avalanche.evaluation.metric_results import MetricValue, MetricResult
 import numpy as np
 from avalanche.evaluation import Metric
+from torch.nn.functional import normalize
 from retrieval.nearest_neighbor import NearestNeighborDistanceMetric
 
 # a standalone metric implementation
@@ -37,7 +38,7 @@ class RecallAtK(Metric[float]):
                 match_counter += 1
         #print("Match_counter: ", match_counter)
         self.recall_at_k = float(match_counter) / l
-        print(self.recall_at_k)
+        #print(self.recall_at_k)
 
     def update_II(self, distances_matrix, query_labels, gallery_labels, is_equal_query=True ):
         """
@@ -89,6 +90,7 @@ class RecallAtKPluginSingleTask(PluginMetric[float]):
         self.y = []
         # current x values for the metric curve
         self.x_coord = 0
+        self.finalEval = False
 
     def reset(self) -> None:
         """
@@ -103,17 +105,25 @@ class RecallAtKPluginSingleTask(PluginMetric[float]):
         Emit the result
         """
         return self._recall_AT_1.result()
+
+    def before_eval(self, strategy: 'PluggableStrategy') -> None:
+        if strategy.epoch == strategy.train_epochs-1:
+            self.finalEval = True
+
+    def after_eval(self, strategy: 'PluggableStrategy') -> None:
+        self.finalEval = False
     
     def after_eval_iteration(self, strategy: 'PluggableStrategy') -> None:
         """
         Get features of batch test images
         """
-        if(strategy.plugins[0].mb_out_flattened_features.is_cuda or strategy.mb_y.is_cuda):
-            mb_out_flattened_features = strategy.plugins[0].mb_out_flattened_features.detach().cpu()
-            labels = strategy.mb_y.detach().cpu()
-            self.out_flattened_features.append(mb_out_flattened_features)
-            self.y.append(labels)
-    
+        if self.finalEval:
+            if(strategy.plugins[0].mb_out_flattened_features.is_cuda or strategy.mb_y.is_cuda):
+                mb_out_flattened_features = strategy.plugins[0].mb_out_flattened_features.detach().cpu()
+                labels = strategy.mb_y.detach().cpu()
+                self.out_flattened_features.append(mb_out_flattened_features)
+                self.y.append(labels)
+        
     def before_eval_exp(self, strategy: 'PluggableStrategy') -> None:
         """
         Reset the recall@k before the next experience begins
@@ -125,18 +135,19 @@ class RecallAtKPluginSingleTask(PluginMetric[float]):
         """
         Emit the result at the end of experience
         """
-        features = torch.cat(self.out_flattened_features)
-        y = torch.cat(self.y)
-        features = torch.squeeze(features)
-        y = torch.squeeze(y)
+        if self.finalEval:
+            features = torch.cat(self.out_flattened_features)
+            y = torch.cat(self.y)
+            features = torch.squeeze(features)
+            y = torch.squeeze(y)
 
-        distances_matrix = self._NN.distance(features, features)
-        self._recall_AT_1.update(distances_matrix, y, y, True )
-        value = self.result()
-        
-        self.x_coord += 1 # increment x value
-        name = "Recall@"+"1"+"_Single_Exp"
-        return [MetricValue(self, name, value, self.x_coord)]
+            distances_matrix = self._NN.distance(features, features)
+            self._recall_AT_1.update(distances_matrix, y, y, True )
+            value = self.result()
+            
+            self.x_coord += 1 # increment x value
+            name = "Recall@"+"1"+"_Single_Exp"
+            return [MetricValue(self, name, value, self.x_coord)]
 
     def __str__(self):
         """
@@ -160,6 +171,7 @@ class RecallAtKPluginAllTasks(PluginMetric[float]):
         self.y = []
         # current x values for the metric curve
         self.x_coord = 0
+        self.finalEval = False
 
     def reset(self) -> None:
         """
@@ -180,11 +192,15 @@ class RecallAtKPluginAllTasks(PluginMetric[float]):
         Reset the recall@k before the evaluation phase
         """
         self.reset()
+        if strategy.epoch == strategy.train_epochs-1:
+            self.finalEval = True
     
     def after_eval_iteration(self, strategy: 'PluggableStrategy') -> None:
         """
         Get features of batch test images
         """
+        #if self.finalEval:
+        
         if(strategy.plugins[0].mb_out_flattened_features.is_cuda or strategy.mb_y.is_cuda):
             mb_out_flattened_features = strategy.plugins[0].mb_out_flattened_features.detach().cpu()
             labels = strategy.mb_y.detach().cpu()
@@ -195,17 +211,23 @@ class RecallAtKPluginAllTasks(PluginMetric[float]):
         """
         Emit the result at the end of all experiences
         """
+        if self.finalEval:
+            self.finalEval = False
+            
         features = torch.cat(self.out_flattened_features)
         y = torch.cat(self.y)
         features = torch.squeeze(features)
         y = torch.squeeze(y)
 
+        features = normalize(features)
+
         distances_matrix = self._NN.distance(features, features)
         self._recall_AT_1.update(distances_matrix, y, y, True )
         value = self.result()
         
-        self.x_coord += 1 # increment x value
+        self.x_coord += 1 #strategy.epoch # increment x value
         name = "Recall@"+"1"+"_All_Exp"
+        
         return [MetricValue(self, name, value, self.x_coord)]
 
     def __str__(self):

@@ -8,16 +8,18 @@ from avalanche.training.plugins.evaluation import default_logger
 from avalanche.training.plugins import StrategyPlugin, EvaluationPlugin, LwFPlugin
 from avalanche.training.strategies import BaseStrategy, Naive
 
-from trainer.plugins import ILFGIR_plugin, Naive_plugin, ILFGIR_plugin_new
+from trainer.plugins import ILFGIR_plugin, Naive_plugin
 
 class ILFGIR_strategy(BaseStrategy):
-    def __init__(self, model: Module, optimizer: Optimizer, criterion,
+    def __init__(self, model: Module, optimizer: Optimizer, criterion,  bestModelPath, test_stream=None, lr_scheduler=None,
                  train_mb_size: int = 1, train_epochs: int = 1,
                  eval_mb_size: int = None, device=None,
                  plugins: Optional[List[StrategyPlugin]] = None,
-                 evaluator: EvaluationPlugin = default_logger, eval_every=-1):
+                 evaluator: EvaluationPlugin = default_logger, eval_every=-1 ):
+        
+        #self.test_stream=test_stream
 
-        ILFGIR = ILFGIR_plugin()
+        ILFGIR = ILFGIR_plugin(bestModelPath, lr_scheduler)
         if plugins is None:
             plugins = [ILFGIR]
         else:

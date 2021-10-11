@@ -39,6 +39,12 @@ def kd_loss(n_img, out, prev_out, T=2):
     
     return res
 
+def DistillationLoss(logits_a, logits_b, temperature=1.):
+    return F.binary_cross_entropy_with_logits(
+        torch.sigmoid(logits_a / temperature), 
+        torch.sigmoid(logits_b / temperature)
+    )
+
 
 def pairwise_distance(x, y):
     """
@@ -183,9 +189,11 @@ class MMD_loss(nn.Module):
         else:
             bandwidth = torch.sum(L2_distance.data) / (n_samples**2-n_samples)
         bandwidth /= kernel_mul ** (kernel_num // 2)
+        #print(bandwidth)
         bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
         #print(bandwidth_list)
         kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
+        #print(kernel_val)
         return sum(kernel_val)
 
     def forward(self, source, target):
@@ -200,8 +208,8 @@ class MMD_loss(nn.Module):
 
 
 if __name__ == "__main__":
-    a = torch.tensor([[2., 5.], [1., 3.], [3., 3]])
-    b = torch.tensor([[1., 2.], [3., 3.], [1., 3]])
+    a = torch.tensor([[2.1, 100.], [1.012, 3.11], [1., 3]])
+    b = torch.tensor([[2., 5.003], [1., 3.], [1.08, 3]])
 
 
     #print(pairwise_distances(a.numpy(),b.numpy(),"euclidean")**2)
@@ -209,8 +217,8 @@ if __name__ == "__main__":
 
     print(mmd_loss(a,b))
 
-    #loss = MMD_loss(kernel_num=15)
-    #print(loss(a,b))
+    loss = MMD_loss(kernel_num=5)
+    print(loss(a,b))
 
     
 
