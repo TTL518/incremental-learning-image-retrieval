@@ -207,6 +207,19 @@ class MMD_loss(nn.Module):
         return loss
 
 
+    # def gaussian_kernel(a, b):
+    #     dim1_1, dim1_2 = a.shape[0], b.shape[0]
+    #     depth = a.shape[1]
+    #     a = a.view(dim1_1, 1, depth)
+    #     b = b.view(1, dim1_2, depth)
+    #     a_core = a.expand(dim1_1, dim1_2, depth)
+    #     b_core = b.expand(dim1_1, dim1_2, depth)
+    #     numerator = (a_core - b_core).pow(2).mean(2)/depth
+    #     return torch.exp(-numerator)
+
+    # def MMD(a, b):
+    #     return gaussian_kernel(a, a).mean() + gaussian_kernel(b, b).mean() - 2*gaussian_kernel(a, b).mean()
+
 if __name__ == "__main__":
     a = torch.tensor([[2.1, 100.], [1.012, 3.11], [1., 3]])
     b = torch.tensor([[2., 5.003], [1., 3.], [1.08, 3]])
@@ -217,7 +230,7 @@ if __name__ == "__main__":
 
     print(mmd_loss(a,b))
 
-    loss = MMD_loss(kernel_num=5)
+    loss = MMD_loss(kernel_num=16)
     print(loss(a,b))
 
     

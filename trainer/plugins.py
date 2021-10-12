@@ -40,7 +40,7 @@ class ILFGIR_plugin(StrategyPlugin):
         self.Triplet_Loss = losses.TripletMarginLoss(distance = distances.DotProductSimilarity(), margin=1.0)
         self.CELoss = CrossEntropyLoss()
         self.miner = miners.BatchHardMiner()
-        self.MMDLoss = MMD_loss(kernel_num=10)
+        self.MMDLoss = MMD_loss(kernel_num=5)
           
     def before_training(self, strategy: 'BaseStrategy', **kwargs):
         '''Before incremental training load the starting model'''
@@ -106,11 +106,11 @@ class ILFGIR_plugin(StrategyPlugin):
 
             #CALCOLO TRIPLET LOSS
             hard_pairs = self.miner(self.mb_out_flattened_features, strategy.mb_y)
-            self.tripletLoss =  0.15*(self.Triplet_Loss(self.mb_out_flattened_features, strategy.mb_y, hard_pairs))
+            self.tripletLoss =  (self.Triplet_Loss(self.mb_out_flattened_features, strategy.mb_y, hard_pairs))
 
             #CALCOLO MMD LOSS
             #self.mmdLoss = mmd_loss(self.mb_out_flattened_features, frozen_prev_model_flattened_features)
-            self.mmdLoss = (self.MMDLoss(self.mb_out_flattened_features,frozen_prev_model_flattened_features))
+            self.mmdLoss = 5*(self.MMDLoss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features)))
             print("MMD", self.mmdLoss)
             #self.mmdLoss2 = self.MMDLoss(self.mb_out_flattened_features2, frozen_prev_model_flattened_features2)
             #print(self.mmdLoss)
@@ -118,8 +118,8 @@ class ILFGIR_plugin(StrategyPlugin):
             #Separo logits dell'esperienze vecchie dai logits delle nuove classi nella nuova esperienza
             n_old_class = frozen_prev_model_logits.shape[1]
             n_new_class = strategy.mb_output.shape[1]-n_old_class
-            print(" n_old_class: ", n_old_class)
-            print(" n_new_class: ", n_new_class)
+            #print(" n_old_class: ", n_old_class)
+            #print(" n_new_class: ", n_new_class)
             mb_old_class_logits = strategy.mb_output[:, :n_old_class]
             #print("Shape  mb_old_class_logits: ",  mb_old_class_logits.shape)
             mb_new_class_logits = strategy.mb_output[:, n_old_class:]
@@ -144,19 +144,19 @@ class ILFGIR_plugin(StrategyPlugin):
             #USANDO PARAMETRO WEIGHT
             ce_weights = torch.zeros(strategy.mb_output.shape[1]).to(device)
             ce_weights[n_old_class:] = 1
-            print("ce weights: ", ce_weights)
+            #print("ce weights: ", ce_weights)
             cross_entropy_loss = CrossEntropyLoss(weight=ce_weights)
-            self.ceLoss = 0.15*(cross_entropy_loss(strategy.mb_output, strategy.mb_y))
+            self.ceLoss = (cross_entropy_loss(strategy.mb_output, strategy.mb_y))
 
             #CALCOLO KD LOSS SOLO SUI LOGITS DELLE CLASSI DEI TASK PRECEDENTI
             n_new_images = strategy.mb_x.shape[0]
             #print("number of new images in minibatch: ", n_new_images)
-            self.kdLoss = 0.3*(kd_loss(n_new_images, mb_old_class_logits, frozen_prev_model_logits))
+            self.kdLoss = (kd_loss(n_new_images, mb_old_class_logits, frozen_prev_model_logits))
             #self.kdLoss = DistillationLoss(mb_old_class_logits, frozen_prev_model_logits)
 
             #NUOVA LOSS DA OTTIMIZZARE
             strategy.loss = self.ceLoss + self.tripletLoss + self.mmdLoss + self.kdLoss # #  + self.mmdLoss2   10mmd 2kd  #aggiungo alla cross entropy calcolata solo sulle nuove classi le altre loss
-            #strategy.loss =  0.2*self.ceLoss + 0.1*self.tripletLoss + 0.4*self.mmdLoss + 0.3*self.kdLoss
+            #strategy.loss =  0.15*self.ceLoss + 0.15*self.tripletLoss + 0.4*self.mmdLoss + 0.3*self.kdLoss
             self.global_loss = strategy.loss
             
     def before_training_epoch(self, strategy:'BaseStrategy', **kwargs):
@@ -195,6 +195,12 @@ class ILFGIR_plugin(StrategyPlugin):
         '''
         self.mb_out_flattened_features = strategy.mb_output[1]
         strategy.mb_output = strategy.mb_output[0]
+
+    def l2_norm(input, axis=1):
+        norm = torch.norm(input, 2, axis, True)
+        output = torch.div(input, norm)
+
+        return output
 
 
 class Naive_plugin(StrategyPlugin):

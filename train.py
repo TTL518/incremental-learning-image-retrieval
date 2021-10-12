@@ -1,7 +1,7 @@
 import os
 
 from torch.optim import lr_scheduler
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
 import torch
 from torch.optim import Adam, SGD
@@ -62,10 +62,10 @@ if __name__ == "__main__":
     bias_classifier = False
     norm_weights_classsifier = True
 
-    #bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+MMD+KD-140epochs-WeightedLOSS.pth"
+    bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+MMD+KD-140epochs-WeightedLOSS_X5.pth"
     #bestModelPath = "saved_models/bestModel_2T_RN50_CUB_CE+Triplet+MMD_512.pth"
     #bestModelPath = "saved_models/bestModel_2T_Inception_CUB_CE+Triplet+MMD.pth"
-    bestModelPath = "PROVA.pth"
+    #bestModelPath = "PROVA.pth"
 
     optim = "SGD"
     lr = 0.1
@@ -75,9 +75,9 @@ if __name__ == "__main__":
     #optim = "Adam"
     #lr = 0.00001
     
-    train_batch = 32
-    eval_batch = 32
-    train_epochs =4
+    train_batch = 128
+    eval_batch = 128
+    train_epochs = 140
     eval_every = 2
 
     dataset = "CIFAR100"
@@ -139,11 +139,11 @@ if __name__ == "__main__":
     
     run_id = ""
     #run_name = "TaskInc-CE+Triplet+MMD-CUB-ResNet50_512"
-    run_name = "2TaskInc-CE+Triplet+MMD+KD-CIFAR100-ResNet32-140epochs-WeightedLOSS"
+    run_name = "2TaskInc-CE+Triplet+MMD+KD-CIFAR100-ResNet32-140epochs-WeightedLOSS_X5"
     #run_name = "2Task_Inception_CUB_CE+Triplet+MMD"
     #description = "PROVA solo mmd"
     #description = "Second Incremental training from second task (scenario with 5 task) using CE + Triple with hard miner + KD + MMD. Used A-Softmax"
-    description = "Incremental training 2 Task. CIFAR100. ResNet32. Loss used CE+Triplet+MMD+KD. With classifier weights normalization and Bias False. 140 epochs. WeightedLOSS"
+    description = "Incremental training 2 Task. CIFAR100. ResNet32. Loss used CE+Triplet+MMD+KD. With classifier weights normalization and Bias False. 140 epochs. WeightedLOSS X5"
     #description = "Incremental training 2 Task. CUB200. ResNet50 pretrained on imagenet. Loss used CE+Triplet+MMD. With classifier weights normalization and Bias False. 512 dim of normalized features for retrieval"
     #description = "Incremental training 2 Task. CUB200. Inception. Loss used CE+Triplet+MMD. PARAMETERS LIKE On the exploration"
     

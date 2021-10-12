@@ -1,5 +1,10 @@
-avalanche
 torch
+torchvision
 neptune-client
 numpy
 scipy
+git+https://github.com/ContinualAI/avalanche.git
+wheel
+gdown
+pytorch_metric_learning
+plotly

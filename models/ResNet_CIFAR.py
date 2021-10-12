@@ -123,7 +123,7 @@ class CifarResNet(nn.Module):
         x = x.view(x.size(0), -1)
         y = self.inc_classifier(x)
 
-        return y, F.normalize(x) 
+        return y, x 
 
     def forwardFeature(self, x):
         pass
