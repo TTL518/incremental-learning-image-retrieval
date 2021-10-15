@@ -5,8 +5,8 @@ __pycache__
 FashionMNIST
 CUB_200_2011
 MNIST
-saved_models/
 events*
+*.pt
 *.pth
 *.tgz
 *.tar
