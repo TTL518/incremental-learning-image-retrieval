@@ -34,6 +34,7 @@ from metric.plugin_ce_loss_metric import MinibatchCELoss, EpochCELoss
 from metric.plugin_mmd_loss_metric import MinibatchMMDLoss, EpochMMDLoss
 from metric.plugin_kd_loss_metric import MinibatchKDLoss, EpochKDLoss
 from metric.plugin_global_loss_metric import MinibatchGlobalLoss, EpochGlobalLoss
+from metric.plugin_coral_loss_metric import MinibatchCoralLoss, EpochCoralLoss
 from metric.plugin_cl_accuracy import MyEvalExpAccuracy
 
 
@@ -62,10 +63,10 @@ if __name__ == "__main__":
     bias_classifier = False
     norm_weights_classsifier = True
 
-    bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+MMD+KD-140epochs-WeightedLOSS_X5.pth"
+    bestModelPath = "saved_models/bestModel_2T_RN152_CIFAR100_CE+Triplet+MMD+KD-140epochs-OLDMMD.pth"
     #bestModelPath = "saved_models/bestModel_2T_RN50_CUB_CE+Triplet+MMD_512.pth"
-    #bestModelPath = "saved_models/bestModel_2T_Inception_CUB_CE+Triplet+MMD.pth"
-    #bestModelPath = "PROVA.pth"
+    #bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_Triplet+MMD-140epochs.pth"
+    #bestModelPath = "saved_models/PROVA.pth"
 
     optim = "SGD"
     lr = 0.1
@@ -77,7 +78,7 @@ if __name__ == "__main__":
     
     train_batch = 128
     eval_batch = 128
-    train_epochs = 140
+    train_epochs = 151
     eval_every = 2
 
     dataset = "CIFAR100"
@@ -99,10 +100,10 @@ if __name__ == "__main__":
 
     modelName = "CIFAR resnet32"
     #modelName = "Resnet50 pretrained on imagenet"
-    #model = INCREMENTAL_ResNet(ResNet_N=50, pretrained=True, save_dir="net_checkpoints/", initial_num_classes=initial_num_classes)
+    model = INCREMENTAL_ResNet(ResNet_N=152, pretrained=False, save_dir="net_checkpoints/", initial_num_classes=initial_num_classes)
     #model = LeNet_PP(initial_num_classes=2, bias_classifier=False, norm_classifier=True)
     #model = LeNet(initial_num_classes=2, bias_classifier=False, norm_classifier=True)
-    model = resnet32(bias_classifier=bias_classifier, norm_weights_classifier=norm_weights_classsifier, num_classes=initial_num_classes)
+    #model = resnet32(bias_classifier=bias_classifier, norm_weights_classifier=norm_weights_classsifier, num_classes=initial_num_classes)
     #model = GoogLeNet(initial_num_classes=0, aux_logits=False)
     
     print(model)
@@ -111,23 +112,15 @@ if __name__ == "__main__":
     #OPTIMIZER CREATION
     #optim = Adam(model.parameters(), lr=lr)
     optim = SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay )
-    scheduler_lr = MultiStepLR(optim, milestones=[49, 69, 89, 109], gamma=0.1)
+    milestone = [49, 99, 129]
+    scheduler_lr = MultiStepLR(optim, milestones=milestone, gamma=0.1)
 
     # optim = Adam([
     #             {'params': model.parameters() },
     #             {'params': model.fc.parameters(), 'lr': 1e-5},
     #         ], lr=1e-6)
-
-    # TRAIN PROCEDURE SPECIFICATION
     
-    start_from_second_exp = False
 
-    #checkpoint = torch.load("saved_models/BaseModelForCL02_CE+Triplet.pt")
-    #print(checkpoint['model_state_dict'])
-    #model.load_state_dict(checkpoint['model_state_dict'])
-    #optim.load_state_dict(checkpoint['optimizer_state_dict'])
-
-    
     # DEFINE  LOGGERS
 
     interactive_logger = InteractiveLogger()
@@ -139,11 +132,12 @@ if __name__ == "__main__":
     
     run_id = ""
     #run_name = "TaskInc-CE+Triplet+MMD-CUB-ResNet50_512"
-    run_name = "2TaskInc-CE+Triplet+MMD+KD-CIFAR100-ResNet32-140epochs-WeightedLOSS_X5"
+    run_name = "2TaskInc-CE+Triplet+MMD+KD-CIFAR100-ResNet152-140epochs_OLDMMD"
     #run_name = "2Task_Inception_CUB_CE+Triplet+MMD"
-    #description = "PROVA solo mmd"
+    #run_name = "PROVA"
+    #description = "PROVA"
     #description = "Second Incremental training from second task (scenario with 5 task) using CE + Triple with hard miner + KD + MMD. Used A-Softmax"
-    description = "Incremental training 2 Task. CIFAR100. ResNet32. Loss used CE+Triplet+MMD+KD. With classifier weights normalization and Bias False. 140 epochs. WeightedLOSS X5"
+    description = "Incremental training 2 Task. CIFAR100. ResNet152. Loss used CE+Triplet+MMD+KD. With classifier weights normalization and Bias False. 140 epochs.OLD MMD"
     #description = "Incremental training 2 Task. CUB200. ResNet50 pretrained on imagenet. Loss used CE+Triplet+MMD. With classifier weights normalization and Bias False. 512 dim of normalized features for retrieval"
     #description = "Incremental training 2 Task. CUB200. Inception. Loss used CE+Triplet+MMD. PARAMETERS LIKE On the exploration"
     
@@ -193,11 +187,13 @@ if __name__ == "__main__":
         MinibatchKDLoss(),
         MinibatchMMDLoss(),
         MinibatchGlobalLoss(),
+        MinibatchCoralLoss(),
         EpochTripletLoss(),
         EpochCELoss(),
         EpochKDLoss(),
         EpochMMDLoss(),
         EpochGlobalLoss(),
+        EpochCoralLoss(),
         MyEvalExpAccuracy(),
         #PlotFeaturesPlugin(class_names),
         #LRPlugin(),
@@ -206,7 +202,8 @@ if __name__ == "__main__":
 
     # CREATE THE STRATEGY INSTANCE (NAIVE)
     cl_strategy = ILFGIR_strategy(
-                        model, 
+                        model,
+                        None,  
                         optim,
                         CrossEntropyLoss(), 
                         bestModelPath=bestModelPath,
@@ -226,43 +223,22 @@ if __name__ == "__main__":
 
     
 
-    if(start_from_second_exp):
-        #Train e evaluation incrementale dal secondo task
-        for i in range(len(scenario.train_stream)-1):
-            print("Start of experience: ", scenario.train_stream[i+1].current_experience)
-            print("Current Classes: ", scenario.train_stream[i+1].classes_in_this_experience)
+    #Train e evaluation incrementale dal primo task
+    for experience in scenario.train_stream:
+        print("Start of experience: ", experience.current_experience)
+        print("Current Classes: ", experience.classes_in_this_experience)
 
-            # train returns a dictionary which contains all the metric values
-            res = cl_strategy.train(scenario.train_stream[i+1])
-            print('Training completed')
+        # train returns a dictionary which contains all the metric values
+        res = cl_strategy.train(experience, [scenario.test_stream[0:experience.current_experience+1]])
+        print('Training completed')
 
-            #Eval su tutte le esperienze passate (SINGOLARMENTE)
-            '''
-            for i in range(experience.current_experience+1):
-                print("Test experience: ",scenario.test_stream[i].current_experience)
-                print("Current classes: ",scenario.test_stream[i].classes_in_this_experience)
-                results.append(cl_strategy.eval(scenario.test_stream[i]))
-            '''
+        #Eval su tutte le esperienze passate (SINGOLARMENTE)
+        '''
+        for i in range(experience.current_experience+1):
+            print("Test experience: ",scenario.test_stream[i].current_experience)
+            print("Current classes: ",scenario.test_stream[i].classes_in_this_experience)
+            results.append(cl_strategy.eval(scenario.test_stream[i]))
+        '''
 
-            #Eval su tutte le experience passate (TUTTE INSIEME)
-            results.append(cl_strategy.eval(scenario.test_stream[0:i+2]))
-    else:
-        #Train e evaluation incrementale dal primo task
-        for experience in scenario.train_stream:
-            print("Start of experience: ", experience.current_experience)
-            print("Current Classes: ", experience.classes_in_this_experience)
-
-            # train returns a dictionary which contains all the metric values
-            res = cl_strategy.train(experience, [scenario.test_stream[0:experience.current_experience+1]])
-            print('Training completed')
-
-            #Eval su tutte le esperienze passate (SINGOLARMENTE)
-            '''
-            for i in range(experience.current_experience+1):
-                print("Test experience: ",scenario.test_stream[i].current_experience)
-                print("Current classes: ",scenario.test_stream[i].classes_in_this_experience)
-                results.append(cl_strategy.eval(scenario.test_stream[i]))
-            '''
-
-            #Eval su tutte le experience passate (TUTTE INSIEME)
-            results.append(cl_strategy.eval(scenario.test_stream[0:experience.current_experience+1]))
+        #Eval su tutte le experience passate (TUTTE INSIEME)
+        results.append(cl_strategy.eval(scenario.test_stream[0:experience.current_experience+1]))
