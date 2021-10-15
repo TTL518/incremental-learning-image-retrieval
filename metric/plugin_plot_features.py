@@ -98,7 +98,7 @@ class PlotFeaturesPlugin(PluginMetric[float]):
         """
         #print("Befor eval exp")
         self.reset()
-        if strategy.epoch == strategy.train_epochs-1:
+        if strategy.epoch == strategy.train_epochs:
             self.finalEval = True
 
     def after_eval(self, strategy: 'PluggableStrategy') -> 'MetricResult':

@@ -90,7 +90,7 @@ class RecallAtKPluginSingleTask(PluginMetric[float]):
         self.y = []
         # current x values for the metric curve
         self.x_coord = 0
-        self.finalEval = False
+        self.InitialFinalEval = False
 
     def reset(self) -> None:
         """
@@ -107,17 +107,19 @@ class RecallAtKPluginSingleTask(PluginMetric[float]):
         return self._recall_AT_1.result()
 
     def before_eval(self, strategy: 'PluggableStrategy') -> None:
-        if strategy.epoch == strategy.train_epochs-1:
-            self.finalEval = True
+        if strategy.epoch == strategy.train_epochs or strategy.epoch == 0:
+            self.InitialFinalEval = True
+        else:
+            self.InitialFinalEval = False
 
     def after_eval(self, strategy: 'PluggableStrategy') -> None:
-        self.finalEval = False
+        self.InitialFinalEval = False
     
     def after_eval_iteration(self, strategy: 'PluggableStrategy') -> None:
         """
         Get features of batch test images
         """
-        if self.finalEval:
+        if self.InitialFinalEval:
             if(strategy.plugins[0].mb_out_flattened_features.is_cuda or strategy.mb_y.is_cuda):
                 mb_out_flattened_features = strategy.plugins[0].mb_out_flattened_features.detach().cpu()
                 labels = strategy.mb_y.detach().cpu()
@@ -135,7 +137,7 @@ class RecallAtKPluginSingleTask(PluginMetric[float]):
         """
         Emit the result at the end of experience
         """
-        if self.finalEval:
+        if self.InitialFinalEval:
             features = torch.cat(self.out_flattened_features)
             y = torch.cat(self.y)
             features = torch.squeeze(features)
@@ -146,7 +148,8 @@ class RecallAtKPluginSingleTask(PluginMetric[float]):
             value = self.result()
             
             self.x_coord += 1 # increment x value
-            name = "Recall@"+"1"+"_Single_Exp"
+            name = "Recall@"+"1"+"_Single_Exp"+str(strategy.experience.current_experience)
+            
             return [MetricValue(self, name, value, self.x_coord)]
 
     def __str__(self):
@@ -192,7 +195,7 @@ class RecallAtKPluginAllTasks(PluginMetric[float]):
         Reset the recall@k before the evaluation phase
         """
         self.reset()
-        if strategy.epoch == strategy.train_epochs-1:
+        if strategy.epoch == strategy.train_epochs:
             self.finalEval = True
     
     def after_eval_iteration(self, strategy: 'PluggableStrategy') -> None:

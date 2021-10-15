@@ -43,7 +43,7 @@ class CheckpointPluginMetric(GenericPluginMetric[float]):
         Reset the accuracy before the evaluation phase
         """
         self.reset()
-        if(strategy.epoch == strategy.train_epochs-1):
+        if(strategy.epoch == strategy.train_epochs):
             self.finalEval=True
             print("Evaluation finale")
         else:
