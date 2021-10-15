@@ -11,7 +11,7 @@ from avalanche.training.strategies import BaseStrategy, Naive
 from trainer.plugins import ILFGIR_plugin, Naive_plugin
 
 class ILFGIR_strategy(BaseStrategy):
-    def __init__(self, model: Module, optimizer: Optimizer, criterion,  bestModelPath, test_stream=None, lr_scheduler=None,
+    def __init__(self, model: Module, prev_model_frozen: Module, optimizer: Optimizer, criterion,  bestModelPath, test_stream=None, lr_scheduler=None,
                  train_mb_size: int = 1, train_epochs: int = 1,
                  eval_mb_size: int = None, device=None,
                  plugins: Optional[List[StrategyPlugin]] = None,
@@ -19,7 +19,7 @@ class ILFGIR_strategy(BaseStrategy):
         
         #self.test_stream=test_stream
 
-        ILFGIR = ILFGIR_plugin(bestModelPath, lr_scheduler)
+        ILFGIR = ILFGIR_plugin(bestModelPath, lr_scheduler, prev_model_frozen)
         if plugins is None:
             plugins = [ILFGIR]
         else:
