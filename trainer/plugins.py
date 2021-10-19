@@ -39,7 +39,7 @@ class ILFGIR_plugin(StrategyPlugin):
         
         self.mb_out_flattened_features = None
         self.out_logits = None
-        self.Triplet_Loss = losses.TripletMarginLoss(distance = distances.CosineSimilarity(), margin=0.5)
+        self.Triplet_Loss = losses.TripletMarginLoss(distance = distances.CosineSimilarity(), margin=1)
         self.CELoss = CrossEntropyLoss()
         self.miner = miners.BatchHardMiner()
         #self.miner = miners.BatchEasyHardMiner(pos_strategy="hard", neg_strategy="semihard")
@@ -108,12 +108,12 @@ class ILFGIR_plugin(StrategyPlugin):
             #print("Shape flattened_features: ", self.mb_out_flattened_features.shape)
 
             #CALCOLO TRIPLET LOSS
-            #hard_pairs = self.miner(self.mb_out_flattened_features, strategy.mb_y)
-            #self.tripletLoss =  self.Triplet_Loss(F.normalize(self.mb_out_flattened_features), strategy.mb_y, hard_pairs)
+            hard_pairs = self.miner(self.mb_out_flattened_features, strategy.mb_y)
+            self.tripletLoss =  self.Triplet_Loss(F.normalize(self.mb_out_flattened_features), strategy.mb_y, hard_pairs)
 
             #CALCOLO MMD LOSS
-            #self.mmdLoss = mmd_loss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features))
-            self.mmdLoss = self.MMDLoss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features))
+            #self.mmdLoss = 10*(mmd_loss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features)))
+            self.mmdLoss = 10*(self.MMDLoss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features)))
             #print("MMD", self.mmdLoss)
             #self.mmdLoss2 = self.MMDLoss(self.mb_out_flattened_features2, frozen_prev_model_flattened_features2)
             #print(self.mmdLoss)
@@ -161,7 +161,7 @@ class ILFGIR_plugin(StrategyPlugin):
             #self.coralLoss = coral(mb_old_class_logits, frozen_prev_model_logits)
 
             #NUOVA LOSS DA OTTIMIZZARE
-            strategy.loss = self.ceLoss + self.mmdLoss #+ self.coralLoss #  + self.kdLoss + self.tripletLoss  + self.mmdLoss2  
+            strategy.loss = self.ceLoss + self.tripletLoss + self.kdLoss #+ self.coralLoss #+ self.mmdLoss + self.tripletLoss  + self.mmdLoss2  
             #strategy.loss =  0.15*self.ceLoss + 0.15*self.tripletLoss + 0.4*self.mmdLoss + 0.3*self.kdLoss
             self.global_loss = strategy.loss
             
@@ -187,7 +187,7 @@ class ILFGIR_plugin(StrategyPlugin):
         #             {'params': classifier_params.values(), 'lr': 1e-4}
         #         ], lr=1e-5, weight_decay=2e-4)
 
-        strategy.optimizer = Adam(strategy.model.parameters(), lr=0.001)
+        strategy.optimizer = Adam(strategy.model.parameters(), lr=0.00001)
 
         #strategy.optimizer = SGD(strategy.model.parameters(), lr=0.01, momentum=0.9, weight_decay=2e-4 )
         #self.scheduler_lr = MultiStepLR(strategy.optimizer, milestones=[39, 79, 99, 129] , gamma=0.1) # [49, 69, 89, 109]
@@ -211,12 +211,6 @@ class ILFGIR_plugin(StrategyPlugin):
         '''
         self.mb_out_flattened_features = strategy.mb_output[1]
         strategy.mb_output = strategy.mb_output[0]
-
-    def l2_norm(input, axis=1):
-        norm = torch.norm(input, 2, axis, True)
-        output = torch.div(input, norm)
-
-        return output
 
 
 class Naive_plugin(StrategyPlugin):

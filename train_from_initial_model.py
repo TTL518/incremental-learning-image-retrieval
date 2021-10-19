@@ -26,7 +26,7 @@ from data.datasets.utils import get_train_test_dset
 
 from logger.NeptuneLogger import NeptuneLogger
 from metric.plugin_lr_metric import LRPlugin
-from metric.plugin_recall_at_k import RecallAtKPluginSingleTask, RecallAtKPluginAllTasks
+from metric.plugin_recall_at_k import RecallAtKPluginSingleTask, RecallAtKPluginAllTasks, RecallAtKPluginAllTasksAndCheckpoint
 from metric.plugin_checkpoint_metric import CheckpointPluginMetric
 from metric.plugin_plot_features import PlotFeaturesPlugin
 from metric.plugin_triplet_loss_metric import MinibatchTripletLoss, EpochTripletLoss
@@ -63,7 +63,8 @@ if __name__ == "__main__":
     bias_classifier = False
     norm_weights_classsifier = True
 
-    bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+MMD_GOOD3.pth"
+    bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+MMD_HPO39.pth"
+    #bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+KD_HPO2.pth"
     #bestModelPath = "saved_models/prova_ce+coral.pth"
 
 
@@ -73,11 +74,11 @@ if __name__ == "__main__":
     #weight_decay = 2e-4
 
     optim = "Adam"
-    lr = 0.001
+    lr = 0.00001
     
     train_batch = 32
     eval_batch = 32
-    train_epochs = 101
+    train_epochs = 551
     eval_every = 2
 
     dataset = "CIFAR100"
@@ -164,12 +165,13 @@ if __name__ == "__main__":
     
     run_id = ""
     #run_name = "TaskInc-CE+Triplet+MMD-CUB-ResNet50_512"
-    run_name = "2TaskInc-CE+MMD-CIFAR100-ResNet32"
+    run_name = "2TaskInc-CE+Triplet+MMD-CIFAR100-ResNet32"
     #run_name = "2Task_Inception_CUB_CE+Triplet+MMD"
     #run_name = "2Task_CIFAR100_CE+Coral"
 
     #description = "Prova coral"
-    description = "Incremental training starting from second task (scenario with 2 task) using CE + MMD. Used A-Softmax. NEW mmd implementation. Adam 0.001. BS32. "
+    description = "Incremental training starting from second task (scenario with 2 task) using CE + Triplet + 10XMMD. Used A-Softmax. NEW mmd implementation. Adam 0.00001. BS32. RecCheckpoint. DropLastTrue "
+    #description = "Incremental training starting from second task (scenario with 2 task) using CE + Triplet + KD. Used A-Softmax. Adam 0.00001. BS32. RecCheckpoint "
     #description = "Incremental training 2 Task. CIFAR100. ResNet32. Loss used CE+Triplet+MMD+KD. With classifier weights normalization and Bias False. 140 epochs.OLD MMD"
     #description = "Incremental training 2 Task. CUB200. ResNet50 pretrained on imagenet. Loss used CE+Triplet+MMD. With classifier weights normalization and Bias False. 512 dim of normalized features for retrieval"
     #description = "Incremental training 2 Task. CUB200. Inception. Loss used CE+Triplet+MMD. PARAMETERS LIKE On the exploration"
@@ -215,8 +217,9 @@ if __name__ == "__main__":
         loss_metrics( minibatch=True, epoch=True, experience=True),
         timing_metrics(minibatch=True, epoch=True, epoch_running=True),
         RecallAtKPluginSingleTask(),
-        RecallAtKPluginAllTasks(),
-        CheckpointPluginMetric(bestModelPath),
+        #RecallAtKPluginAllTasks(),
+        RecallAtKPluginAllTasksAndCheckpoint(bestModelPath),
+        #CheckpointPluginMetric(bestModelPath),
         MinibatchTripletLoss(),
         MinibatchCELoss(),
         MinibatchKDLoss(),
@@ -264,7 +267,8 @@ if __name__ == "__main__":
         print("Current Classes: ", scenario.train_stream[i+1].classes_in_this_experience)
 
         # train returns a dictionary which contains all the metric values
-        res = cl_strategy.train(scenario.train_stream[i+1], [scenario.test_stream[0:i+2]])
+        kwargs = {"drop_last": True}
+        res = cl_strategy.train(scenario.train_stream[i+1], [scenario.test_stream[0:i+2]], **kwargs)
         print('Training completed')
 
         #Eval su tutte le experience passate

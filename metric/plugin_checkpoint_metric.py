@@ -74,7 +74,3 @@ class CheckpointPluginMetric(GenericPluginMetric[float]):
                 }
                 self.bestMetricValue = value
                 torch.save(best_dict, self.bestModelPath)
-
-
-
-        
