@@ -7,6 +7,7 @@ from trainer.plugins import ILFGIR_plugin
 from avalanche.training.plugins.evaluation import default_logger
 from avalanche.training.plugins import StrategyPlugin, EvaluationPlugin, LwFPlugin
 from avalanche.training.strategies import BaseStrategy, Naive
+from avalanche.benchmarks.utils.data_loader import TaskBalancedDataLoader
 
 from trainer.plugins import ILFGIR_plugin, Naive_plugin
 
@@ -30,6 +31,25 @@ class ILFGIR_strategy(BaseStrategy):
             train_mb_size=train_mb_size, train_epochs=train_epochs,
             eval_mb_size=eval_mb_size, device=device, plugins=plugins,
             evaluator=evaluator, eval_every=eval_every)
+    
+    def make_train_dataloader(self, num_workers=0, shuffle=True,
+                              pin_memory=True, **kwargs):
+        """
+        Called after the dataset adaptation. Initializes the data loader.
+        :param num_workers: number of thread workers for the data loading.
+        :param shuffle: True if the data should be shuffled, False otherwise.
+        :param pin_memory: If True, the data loader will copy Tensors into CUDA
+            pinned memory before returning them. Defaults to True.
+        """
+        self.dataloader = TaskBalancedDataLoader(
+            self.adapted_dataset,
+            oversample_small_groups=True,
+            num_workers=num_workers,
+            batch_size=self.train_mb_size,
+            shuffle=shuffle,
+            pin_memory=pin_memory,
+            drop_last=False
+            )
 
 class Naive_strategy(BaseStrategy):
     def __init__(self, model: Module, optimizer: Optimizer,
