@@ -12,7 +12,7 @@ from avalanche.models import avalanche_forward, DynamicModule, MultiTaskModule
 from numpy import positive
 import torch
 from torch.autograd import backward
-from models.loss import mmd_loss, kd_loss, MMD_loss, DistillationLoss, coral
+from models.loss import mmd_loss,  MMD_loss, kd_loss, knowledge_distillation_loss, coral, center_dist_loss, embeddings_similarity
 from torch.nn import CrossEntropyLoss
 
 from pytorch_metric_learning import losses, miners, distances
@@ -32,6 +32,8 @@ class ILFGIR_plugin(StrategyPlugin):
         self.kdLoss = torch.tensor(0.0)
         self.mmdLoss = torch.tensor(0.0)
         self.coralLoss = torch.tensor(0.0)
+        self.centerDistLoss = torch.tensor(0.0)
+        self.featureDistLoss = torch.tensor(0.0)
         
         self.bestModelPath = bestModelPath
         self.scheduler_lr = scheduler_lr
@@ -95,7 +97,7 @@ class ILFGIR_plugin(StrategyPlugin):
             hard_pairs = self.miner(self.mb_out_flattened_features, strategy.mb_y)
             self.tripletLoss =  self.Triplet_Loss(F.normalize(self.mb_out_flattened_features), strategy.mb_y, hard_pairs)
 
-            strategy.loss = self.ceLoss + self.tripletLoss # 
+            strategy.loss = self.ceLoss + self.tripletLoss
             self.global_loss = strategy.loss
         else:
             """Calcolo nuova loss perche avalanche in automatica calcola CE su tutti i logits invece va calcolata solo su i logits relativi alle nuove classi e con le vecchie calcolo KD"""
@@ -113,10 +115,14 @@ class ILFGIR_plugin(StrategyPlugin):
 
             #CALCOLO MMD LOSS
             #self.mmdLoss = 10*(mmd_loss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features)))
-            self.mmdLoss = 10*(self.MMDLoss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features)))
+            #self.mmdLoss = 10*(self.MMDLoss(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features)))
             #print("MMD", self.mmdLoss)
-            #self.mmdLoss2 = self.MMDLoss(self.mb_out_flattened_features2, frozen_prev_model_flattened_features2)
-            #print(self.mmdLoss)
+
+            #CALCOLO CENTER DISTILLATION LOSS
+            #self.centerDistLoss = center_dist_loss(self.mb_out_flattened_features, frozen_prev_model_flattened_features, strategy.mb_y)
+
+            #CALCOLO FEATURE DISTILLATION LOSS
+            #self.featureDistLoss = embeddings_similarity(F.normalize(self.mb_out_flattened_features), F.normalize(frozen_prev_model_flattened_features))
 
             #Separo logits dell'esperienze vecchie dai logits delle nuove classi nella nuova esperienza
             n_old_class = frozen_prev_model_logits.shape[1]
@@ -131,19 +137,6 @@ class ILFGIR_plugin(StrategyPlugin):
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
             #CALCOLO CE SOLO SUI LOGITS DELLE CLASSI DEL TASK ATTUALE
-            '''
-            #CON MAPPING DELLE LABEL
-            actual_class_values = torch.unique(strategy.mb_y, sorted=True)
-            #print("Actual class values: ", actual_class_values)
-           
-            temp_class_values = torch.arange(n_new_class).to(device)
-            #print("Temporary class values: ", temp_class_values)
-            temp_mb_y = strategy.mb_y.clone()
-            #for i in range(n_new_class):
-            #    temp_mb_y[strategy.mb_y==actual_class_values[i]]=temp_class_values[i]
-            #self.ceLoss = self.CELoss(mb_new_class_logits, temp_mb_y)
-            '''
-
             #USANDO PARAMETRO WEIGHT
             ce_weights = torch.zeros(strategy.mb_output.shape[1]).to(device)
             ce_weights[n_old_class:] = 1
@@ -161,7 +154,7 @@ class ILFGIR_plugin(StrategyPlugin):
             #self.coralLoss = coral(mb_old_class_logits, frozen_prev_model_logits)
 
             #NUOVA LOSS DA OTTIMIZZARE
-            strategy.loss = self.ceLoss + self.tripletLoss + self.kdLoss #+ self.coralLoss #+ self.mmdLoss + self.tripletLoss  + self.mmdLoss2  
+            strategy.loss = self.ceLoss + self.tripletLoss #+ self.mmdLoss #+ self.kdLoss # + self.featureDistLoss #+ self.centerDistLoss # + self.coralLoss
             #strategy.loss =  0.15*self.ceLoss + 0.15*self.tripletLoss + 0.4*self.mmdLoss + 0.3*self.kdLoss
             self.global_loss = strategy.loss
             
@@ -187,10 +180,10 @@ class ILFGIR_plugin(StrategyPlugin):
         #             {'params': classifier_params.values(), 'lr': 1e-4}
         #         ], lr=1e-5, weight_decay=2e-4)
 
-        strategy.optimizer = Adam(strategy.model.parameters(), lr=0.00001)
+        strategy.optimizer = Adam(strategy.model.parameters(), lr=0.00001, weight_decay=5e-4)
 
-        #strategy.optimizer = SGD(strategy.model.parameters(), lr=0.01, momentum=0.9, weight_decay=2e-4 )
-        #self.scheduler_lr = MultiStepLR(strategy.optimizer, milestones=[39, 79, 99, 129] , gamma=0.1) # [49, 69, 89, 109]
+        #strategy.optimizer = SGD(strategy.model.parameters(), lr=0.1, momentum=0.9, weight_decay=2e-4 )
+        #self.scheduler_lr = MultiStepLR(strategy.optimizer, milestones=[49, 99, 139, 169] , gamma=0.1) # [49, 69, 89, 109]
         
         #strategy.eval(strategy.test_stream[0:strategy.experience.current_experience+1])
         #strategy.model.train()

@@ -85,8 +85,8 @@ def get_train_test_dset(dset_name):
         #                             transforms.ToTensor(),
         #                             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
-        train_dset = CUB200(root="data", train=True, transform=train_transform, download=False)
-        test_dset = CUB200(root="data", train=False, transform=test_transform, download=False)
+        train_dset = CUB200(root="data", train=True, transform=train_transform, download=True)
+        test_dset = CUB200(root="data", train=False, transform=test_transform, download=True)
         class_names = None
     
     elif(dset_name=="CIFAR100"):

@@ -1,3 +1,4 @@
+from numpy.core.fromnumeric import mean, shape
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -5,8 +6,9 @@ from torch.autograd import Variable
 from functools import partial
 from sklearn.metrics import pairwise_distances
 import numpy as np
+import time
 
-
+########## INIZIO: 2 implementazioni di Knoledge distillation loss ##########
 def kd_loss(n_img, out, prev_out, T=2):
     """
     Compute the knowledge-distillation (KD) loss with soft targets.
@@ -39,13 +41,15 @@ def kd_loss(n_img, out, prev_out, T=2):
     
     return res
 
-def DistillationLoss(logits_a, logits_b, temperature=2.):
+def knowledge_distillation_loss(logits_a, logits_b, temperature=2.):
     return F.binary_cross_entropy_with_logits(
         torch.sigmoid(logits_a / temperature), 
         torch.sigmoid(logits_b / temperature)
     )
 
+########## FINE: 2 implementazioni di Knoledge distillation loss ##########
 
+########## INIZIO: 2 implementazioni di MMD loss ##########
 def pairwise_distance(x, y):
     """
     Compute the euclidean distances between each representation of the first batch with each representation of the second batch.
@@ -170,7 +174,7 @@ def mmd_loss(source_features, target_features):
 
     return loss_value
 
-
+#https://github.com/ZongxianLee/MMD_Loss.Pytorch/blob/master/mmd_loss.py
 class MMD_loss(nn.Module):
     def __init__(self, kernel_mul = 2.0, kernel_num = 5):
         super(MMD_loss, self).__init__()
@@ -206,92 +210,8 @@ class MMD_loss(nn.Module):
         loss = torch.mean(XX + YY - XY -YX)
         return loss
 
-
-    # def gaussian_kernel(a, b):
-    #     dim1_1, dim1_2 = a.shape[0], b.shape[0]
-    #     depth = a.shape[1]
-    #     a = a.view(dim1_1, 1, depth)
-    #     b = b.view(1, dim1_2, depth)
-    #     a_core = a.expand(dim1_1, dim1_2, depth)
-    #     b_core = b.expand(dim1_1, dim1_2, depth)
-    #     numerator = (a_core - b_core).pow(2).mean(2)/depth
-    #     return torch.exp(-numerator)
-
-    # def MMD(a, b):
-    #     return gaussian_kernel(a, a).mean() + gaussian_kernel(b, b).mean() - 2*gaussian_kernel(a, b).mean()
-
-
-class MMDStatistic:
-    r"""The *unbiased* MMD test of :cite:`gretton2012kernel`.
-    The kernel used is equal to:
-    .. math ::
-        k(x, x') = \sum_{j=1}^k e^{-\alpha_j\|x - x'\|^2},
-    for the :math:`\alpha_j` proved in :py:meth:`~.MMDStatistic.__call__`.
-    Arguments
-    ---------
-    n_1: int
-        The number of points in the first sample.
-    n_2: int
-        The number of points in the second sample."""
-
-    def __init__(self, n_1, n_2):
-        self.n_1 = n_1
-        self.n_2 = n_2
-
-        # The three constants used in the test.
-        self.a00 = 1. / (n_1 * (n_1 - 1))
-        self.a11 = 1. / (n_2 * (n_2 - 1))
-        self.a01 = - 1. / (n_1 * n_2)
-
-    def __call__(self, sample_1, sample_2, alphas, ret_matrix=False):
-        r"""Evaluate the statistic.
-        The kernel used is
-        .. math::
-            k(x, x') = \sum_{j=1}^k e^{-\alpha_j \|x - x'\|^2},
-        for the provided ``alphas``.
-        Arguments
-        ---------
-        sample_1: :class:`torch:torch.autograd.Variable`
-            The first sample, of size ``(n_1, d)``.
-        sample_2: variable of shape (n_2, d)
-            The second sample, of size ``(n_2, d)``.
-        alphas : list of :class:`float`
-            The kernel parameters.
-        ret_matrix: bool
-            If set, the call with also return a second variable.
-            This variable can be then used to compute a p-value using
-            :py:meth:`~.MMDStatistic.pval`.
-        Returns
-        -------
-        :class:`float`
-            The test statistic.
-        :class:`torch:torch.autograd.Variable`
-            Returned only if ``ret_matrix`` was set to true."""
-        sample_12 = torch.cat((sample_1, sample_2), 0)
-        distances = pdist(sample_12, sample_12, norm=2)
-
-        kernels = None
-        for alpha in alphas:
-            kernels_a = torch.exp(- alpha * distances ** 2)
-            if kernels is None:
-                kernels = kernels_a
-            else:
-                kernels = kernels + kernels_a
-
-        k_1 = kernels[:self.n_1, :self.n_1]
-        k_2 = kernels[self.n_1:, self.n_1:]
-        k_12 = kernels[:self.n_1, self.n_1:]
-
-        mmd = (2 * self.a01 * k_12.sum() +
-               self.a00 * (k_1.sum() - torch.trace(k_1)) +
-               self.a11 * (k_2.sum() - torch.trace(k_2)))
-        if ret_matrix:
-            return mmd, kernels
-        else:
-            return mmd
-
-
-
+########## INIZIO: Implementazione di Coral loss ########## 
+#https://github.com/DenisDsh/PyTorch-Deep-CORAL/blob/master/coral.py
 
 def coral(source, target):
 
@@ -326,21 +246,154 @@ def compute_covariance(input_data):
     c = torch.add(d_t_d, (-1 * term_mul_2)) * 1 / (n - 1)
 
     return c
+########## FINE: Implementazione di Coral loss ########## 
 
+######### INIZIO: Implementazione di Center distillation loss ##########
+def get_feats_means_by_class(x,labels):
+    """
+    Compute, for each class, the mean value for each element vector (Centroid for each class)
+
+    Parameters
+        ----------
+        x : ,required
+            Matrix (batch_dim, features_dim) that represent a batch of representations
+        labels : , required
+            Matrix (batch_dim, ) that represent the labels of feature vector in x
+        
+    Returns
+        -------
+        mean_x:
+            Matrix (n_classes, features_dim) centroid for each class
+    """
+    if(len(labels.shape)>1):
+        labels = labels.squeeze()
+    #print(x)
+    #print(labels)
+
+    batch_size = x.shape[0]
+    feats_dim = x.shape[1]
+    num_classes = torch.unique(labels).shape[0]
+    #print(batch_size)
+    #print(feats_dim)
+    #print(num_classes)
+
+    x = x.reshape((batch_size,feats_dim,1)).repeat(1,1,num_classes)
+    labels = labels.unsqueeze(1).expand(batch_size, num_classes).unsqueeze(1)
+    #classes = torch.arange(num_classes).float().cuda()
+    classes = torch.unique(labels, sorted=True)
+    mask = labels.eq(classes.expand(batch_size, num_classes).unsqueeze(1)).float().cuda()
+    mask = mask.repeat(1,feats_dim,1)
+    masked_x = x*mask
+    mean_x = torch.div(masked_x.sum(dim=0), mask.sum(dim=0)).transpose(0,1)
+    #print(mean_x)
+    return mean_x
+
+def center_dist_loss(source, target, labels):
+    """
+    Compute the distances between features centroids of each class in a batch from source and target
+
+    Parameters
+        ----------
+        source : ,required
+            Matrix (batch_dim, features_dim) that represent a batch of representations from student
+        target : , required
+            Matrix (batch_dim, features_dim) that represent a batch of representations from teacher
+        labels : , required
+            Array (batch_dim, 1) that represent the labels of source and target parameters
+    
+    Returns
+        -------
+        output:
+            Loss value
+    """
+    #s1 = time.perf_counter()
+    source_mean_by_class = get_feats_means_by_class(source, labels)
+    target_mean_by_class = get_feats_means_by_class(target, labels)
+    norm_source_mean_by_class = F.normalize(source_mean_by_class)
+    norm_target_mean_by_classs = F.normalize(target_mean_by_class)
+    loss = F.cosine_embedding_loss( norm_source_mean_by_class, norm_target_mean_by_classs, torch.ones(norm_source_mean_by_class.shape[0]).to(norm_source_mean_by_class.device))
+    #e1=time.perf_counter()
+    #print(f"Calcolo senza for in {e1 - s1:0.4f} seconds")
+    return loss
+
+   
+
+def old_center_dist_loss(source, target, labels):
+    """
+    Compute the distances between centroids of each representation of the first batch with each representation of the second batch.
+    More slow due to for loop.
+
+    Parameters
+        ----------
+        source : ,required
+            Matrix (batch_dim, features_dim) that represent a batch of representations from student
+        target : , required
+            Matrix (batch_dim, features_dim) that represent a batch of representations from teacher
+        labels : , required
+            Array (batch_dim, 1) that represent the labels of source and target parameters
+    
+    Returns
+        -------
+        output:
+            Loss value
+    """
+    #s1 = time.perf_counter()
+    source_mean_by_class = []
+    target_mean_by_class = []
+    classes = torch.unique(labels)
+    for i in classes:
+        indices = torch.where(labels==i)[0]
+        source_mean_by_class.append(source[indices].mean(dim=0, keepdim=True))
+        target_mean_by_class.append(target[indices].mean(dim=0, keepdim=True))
+
+    source_mean_by_class = torch.cat(source_mean_by_class)
+    target_mean_by_class = torch.cat(target_mean_by_class)
+
+    norm_source_mean_by_class = F.normalize(source_mean_by_class)
+    norm_target_mean_by_classs = F.normalize(target_mean_by_class)
+    
+    loss = F.cosine_embedding_loss( norm_source_mean_by_class, norm_target_mean_by_classs, torch.ones(norm_source_mean_by_class.shape[0]).to(norm_source_mean_by_class.device))
+    #e1=time.perf_counter()
+    #print(f"Calcolo con for in {e1 - s1:0.4f} seconds")
+
+    return loss
+
+######### FINE: Implementazione di Center distillation loss ##########
+
+######### INIZIO: Implementazione di Feature distillation loss ##########
+def embeddings_similarity(feature_a, feature_b):
+    return F.cosine_embedding_loss(
+        feature_a, feature_b,
+        torch.ones(feature_a.shape[0]).to(feature_a.device)
+    )
+######### INIZIO: Implementazione di Feature distillation loss ##########
 
 if __name__ == "__main__":
-    a = torch.tensor([[2.1, 100.], [1.012, 3.11], [1., 3]])
-    b = torch.tensor([[2., 5.003], [1., 3.], [1.08, 3]])
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+    
+    #a = torch.tensor([[2., 1.], [5., 3.], [1., 1.]]).cuda()
+    #b = torch.tensor([[2.3, 0.9], [5.0, 3.1], [1.2, 1.6]]).cuda()
+    #labels = torch.tensor([0,1,0]).cuda()
+    a = torch.rand((128,256)).float().cuda()
+    b = torch.rand((128,256)).float().cuda()
+    labels = torch.randint(0,50,(128,)).float().cuda()
 
 
     #print(pairwise_distances(a.numpy(),b.numpy(),"euclidean")**2)
     #print(pairwise_distance(a,b))
 
-    print(mmd_loss(a,b))
+    #print(mmd_loss(a,b))
 
-    loss = MMD_loss(kernel_num=16)
-    print(loss(a,b))
+    #loss = MMD_loss(kernel_num=5)
+    #print(loss(a,b))
 
+    print(center_dist_loss(a,b,labels))
+    print(old_center_dist_loss(a,b,labels))
     
+
+    #centerL = CenterLoss(2)
+    #print(centerL(a,labels))
+
 
     

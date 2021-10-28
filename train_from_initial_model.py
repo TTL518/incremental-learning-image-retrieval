@@ -35,7 +35,9 @@ from metric.plugin_mmd_loss_metric import MinibatchMMDLoss, EpochMMDLoss
 from metric.plugin_kd_loss_metric import MinibatchKDLoss, EpochKDLoss
 from metric.plugin_global_loss_metric import MinibatchGlobalLoss, EpochGlobalLoss
 from metric.plugin_coral_loss_metric import MinibatchCoralLoss, EpochCoralLoss
+from metric.plugin_featsDist_loss import MinibatchFeatsDistLoss, EpochFeatsDistLoss
 from metric.plugin_cl_accuracy import MyEvalExpAccuracy
+from metric.plugin_centerDist_loss_metric import MinibatchCenterDistLoss, EpochCenterDistLoss
 
 
 if __name__ == "__main__":
@@ -56,16 +58,20 @@ if __name__ == "__main__":
     #    0:100
     #}
     per_exp_classes = None
-    initial_num_classes = 50
+    initial_num_classes = 100
     task_label = False
     shuffle_classes_exp = False
 
     bias_classifier = False
     norm_weights_classsifier = True
 
-    bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+MMD_HPO39.pth"
+    #bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+MMD_HPO39.pth"
     #bestModelPath = "saved_models/bestModel_2T_RN32_CIFAR100_CE+Triplet+KD_HPO2.pth"
     #bestModelPath = "saved_models/prova_ce+coral.pth"
+    
+    #bestModelPath = "saved_models/bestModel_Inc_2T_RN32_CIFAR100_CE+Triplet+10xMMD_BS32_1.pth"
+    bestModelPath = "saved_models/bestModel_Inc_2T_RN50_CUB200_CE+Triplet.pth"
+    
 
 
     #optim = "SGD"
@@ -75,13 +81,14 @@ if __name__ == "__main__":
 
     optim = "Adam"
     lr = 0.00001
+    weight_decay = 5e-4
     
     train_batch = 32
     eval_batch = 32
-    train_epochs = 551
+    train_epochs = 201
     eval_every = 2
 
-    dataset = "CIFAR100"
+    dataset = "CUB200"
     train_dset, test_dset, class_names = get_train_test_dset(dataset)
 
     scenario = nc_benchmark(
@@ -98,19 +105,19 @@ if __name__ == "__main__":
 
     # MODEL CREATION
 
-    modelName = "CIFAR resnet32"
-    #modelName = "Resnet50 pretrained on imagenet"
-    #model = INCREMENTAL_ResNet(ResNet_N=50, pretrained=True, save_dir="net_checkpoints/", initial_num_classes=initial_num_classes)
+    #modelName = "CIFAR resnet32"
+    modelName = "Resnet50 pretrained on imagenet"
+    model = INCREMENTAL_ResNet(ResNet_N=50, pretrained=True, save_dir="net_checkpoints/", initial_num_classes=initial_num_classes)
     #model = LeNet_PP(initial_num_classes=2, bias_classifier=False, norm_classifier=True)
     #model = LeNet(initial_num_classes=2, bias_classifier=False, norm_classifier=True)
-    model = resnet32(bias_classifier=bias_classifier, norm_weights_classifier=norm_weights_classsifier, num_classes=initial_num_classes)
+    #model = resnet32(bias_classifier=bias_classifier, norm_weights_classifier=norm_weights_classsifier, num_classes=initial_num_classes)
     #model = GoogLeNet(initial_num_classes=0, aux_logits=False)
     
     print(model)
     print("Parametri totali= ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     #OPTIMIZER CREATION
-    optim = Adam(model.parameters(), lr=lr)
+    optim = Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     milestone = None
     scheduler_lr = None
     
@@ -144,7 +151,8 @@ if __name__ == "__main__":
     ################################## DIFFERENT LR FOR CLASSIFIER AND FEAT EXTRACTOR - END
 
 
-    initial_model_path = "saved_models/initial_model_RN32_CIFAR100_50classes.pth"
+    #initial_model_path = "saved_models/initial_model_RN32_CIFAR100_50classes_New5.pth"
+    initial_model_path = "saved_models/initial_model_RN50_CUB200_100classes.pth"
     checkpoint = torch.load(initial_model_path)
     #print(checkpoint['model_state_dict'])
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -161,16 +169,20 @@ if __name__ == "__main__":
     '''
     If you want to use Neptune logger uncomment this block and set the project_name and the api_token of your account, and add the logger to the evaluation plugin
     '''
-    project_name = "tibi/TESIMAG"
+    project_name = "tibi/TESIMAGNEW"
     
     run_id = ""
     #run_name = "TaskInc-CE+Triplet+MMD-CUB-ResNet50_512"
-    run_name = "2TaskInc-CE+Triplet+MMD-CIFAR100-ResNet32"
+    #run_name = "2TaskInc-CE+Triplet+MMD-CIFAR100-ResNet32"
     #run_name = "2Task_Inception_CUB_CE+Triplet+MMD"
     #run_name = "2Task_CIFAR100_CE+Coral"
+    #run_name = "2TaskInc-CE+Triplet+10xMMD-BS32-CIFAR100-ResNet32"
+    run_name = "2TaskInc-CE+Triplet-CUB200-ResNet50"
 
-    #description = "Prova coral"
-    description = "Incremental training starting from second task (scenario with 2 task) using CE + Triplet + 10XMMD. Used A-Softmax. NEW mmd implementation. Adam 0.00001. BS32. RecCheckpoint. DropLastTrue "
+    #description = "MMD. Incremental training starting from second task (scenario with 2 task) using CE + Triplet + 10xMMD. Adam 0.00001. BS32. No weight-decay"
+    description = "Fine Tune. CUB200. Incremental training starting from second task (scenario with 2 task) using CE + Triplet. Adam 0.00001."
+    
+    #description = "Incremental training starting from second task (scenario with 2 task) using CE + Triplet + 10XMMD. Used A-Softmax. NEW mmd implementation. Adam 0.00001. BS32. RecCheckpoint. DropLastTrue "
     #description = "Incremental training starting from second task (scenario with 2 task) using CE + Triplet + KD. Used A-Softmax. Adam 0.00001. BS32. RecCheckpoint "
     #description = "Incremental training 2 Task. CIFAR100. ResNet32. Loss used CE+Triplet+MMD+KD. With classifier weights normalization and Bias False. 140 epochs.OLD MMD"
     #description = "Incremental training 2 Task. CUB200. ResNet50 pretrained on imagenet. Loss used CE+Triplet+MMD. With classifier weights normalization and Bias False. 512 dim of normalized features for retrieval"
@@ -226,12 +238,16 @@ if __name__ == "__main__":
         MinibatchMMDLoss(),
         MinibatchGlobalLoss(),
         MinibatchCoralLoss(),
+        MinibatchCenterDistLoss(),
+        MinibatchFeatsDistLoss(),
         EpochTripletLoss(),
         EpochCELoss(),
         EpochKDLoss(),
         EpochMMDLoss(),
         EpochGlobalLoss(),
         EpochCoralLoss(),
+        EpochCenterDistLoss(),
+        EpochFeatsDistLoss(),
         MyEvalExpAccuracy(),
         #PlotFeaturesPlugin(class_names),
         #LRPlugin(),

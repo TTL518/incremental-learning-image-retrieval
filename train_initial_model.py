@@ -26,7 +26,7 @@ from data.datasets.utils import get_train_test_dset
 
 from logger.NeptuneLogger import NeptuneLogger
 from metric.plugin_lr_metric import LRPlugin
-from metric.plugin_recall_at_k import RecallAtKPluginSingleTask, RecallAtKPluginAllTasks
+from metric.plugin_recall_at_k import RecallAtKPluginSingleTask, RecallAtKPluginAllTasks, RecallAtKPluginAllTasksAndCheckpoint
 from metric.plugin_checkpoint_metric import CheckpointPluginMetric
 from metric.plugin_plot_features import PlotFeaturesPlugin
 from metric.plugin_triplet_loss_metric import MinibatchTripletLoss, EpochTripletLoss
@@ -35,7 +35,9 @@ from metric.plugin_mmd_loss_metric import MinibatchMMDLoss, EpochMMDLoss
 from metric.plugin_kd_loss_metric import MinibatchKDLoss, EpochKDLoss
 from metric.plugin_global_loss_metric import MinibatchGlobalLoss, EpochGlobalLoss
 from metric.plugin_coral_loss_metric import MinibatchCoralLoss, EpochCoralLoss
+from metric.plugin_featsDist_loss import MinibatchFeatsDistLoss, EpochFeatsDistLoss
 from metric.plugin_cl_accuracy import MyEvalExpAccuracy
+from metric.plugin_centerDist_loss_metric import MinibatchCenterDistLoss, EpochCenterDistLoss
 
 
 if __name__ == "__main__":
@@ -43,7 +45,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device: ", device)
 
-    seed = 2
+    seed = 0
     #seed = np.random.randint(0, 10000)
     if(seed!=-1):
         set_seed(seed)
@@ -54,29 +56,32 @@ if __name__ == "__main__":
     #    0:100
     #}
     per_exp_classes = None
-    initial_num_classes = 50
+    initial_num_classes = 100
     task_label = False
     shuffle_classes_exp = False
 
     bias_classifier = False
     norm_weights_classsifier = True
 
-    bestModelPath = "saved_models/initial_model_RN32_CIFAR100_50classes.pth"
+    bestModelPath = "saved_models/initial_model_RN50_CUB200_100classes.pth"
+    #bestModelPath = "saved_models/initial_model_RN32_CIFAR100_50classes_New5.pth"
 
-    optim = "SGD"
-    lr = 0.1
-    momentum = 0.9
-    weight_decay = 2e-4
 
-    #optim = "Adam"
-    #lr = 0.00001
+    #optim = "SGD"
+    #lr = 0.1
+    #momentum = 0.9
+    #weight_decay = 2e-4
+
+    optim = "Adam"
+    lr = 0.00001
+    weight_decay = 5e-4
     
-    train_batch = 128
-    eval_batch = 128
-    train_epochs = 151
+    train_batch = 64
+    eval_batch = 64
+    train_epochs = 201
     eval_every = 2
 
-    dataset = "CIFAR100"
+    dataset = "CUB200"
     train_dset, test_dset, class_names = get_train_test_dset(dataset)
 
     scenario = nc_benchmark(
@@ -93,22 +98,25 @@ if __name__ == "__main__":
 
     # MODEL CREATION
 
-    modelName = "CIFAR resnet32"
-    #modelName = "Resnet50 pretrained on imagenet"
-    #model = INCREMENTAL_ResNet(ResNet_N=50, pretrained=True, save_dir="net_checkpoints/", initial_num_classes=initial_num_classes)
+    #modelName = "CIFAR resnet32"
+    modelName = "Resnet50 pretrained on imagenet"
+    model = INCREMENTAL_ResNet(ResNet_N=50, pretrained=True, save_dir="net_checkpoints/", initial_num_classes=initial_num_classes)
     #model = LeNet_PP(initial_num_classes=2, bias_classifier=False, norm_classifier=True)
     #model = LeNet(initial_num_classes=2, bias_classifier=False, norm_classifier=True)
-    model = resnet32(bias_classifier=bias_classifier, norm_weights_classifier=norm_weights_classsifier, num_classes=initial_num_classes)
+    #model = resnet32(bias_classifier=bias_classifier, norm_weights_classifier=norm_weights_classsifier, num_classes=initial_num_classes)
     #model = GoogLeNet(initial_num_classes=0, aux_logits=False)
     
     print(model)
     print("Parametri totali= ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     #OPTIMIZER CREATION
-    #optim = Adam(model.parameters(), lr=lr)
-    optim = SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay )
-    milestone = [49, 99, 129]
-    scheduler_lr = MultiStepLR(optim, milestones=milestone, gamma=0.1)
+    optim = Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    milestone = None
+    scheduler_lr = None
+
+    #optim = SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay )
+    #milestone = [49, 99, 139, 169]
+    #scheduler_lr = MultiStepLR(optim, milestones=milestone, gamma=0.1)
 
     # optim = Adam([
     #             {'params': model.parameters() },
@@ -119,12 +127,15 @@ if __name__ == "__main__":
 
     interactive_logger = InteractiveLogger()
 
-    project_name = "tibi/TESIMAG"
+    project_name = "tibi/TESIMAGNEW"
     
     run_id = ""
 
-    run_name = "Training_Initial_Model_RN32_CIFAR100_50Classes"
-    description = "Training of the initial model for incremental learning on CIFAR100 with ResNet32. 50 classes."
+    run_name = "Training_Initial_Model_RN50_CUB200_100Classes"
+    #run_name = "Training_Initial_Model_RN32_CIFAR100_50Classes"
+    
+    description = "Training of the initial model for incremental learning on CUB200 with ResNet50 pretrained on imagenet. 100 classes."
+    #description = "Training of the initial model for incremental learning on CIFAR00 with ResNet32. 50 classes."
     
     neptune_logger = NeptuneLogger(project_name=project_name, run_name=run_name, description=description)
 
@@ -151,8 +162,7 @@ if __name__ == "__main__":
         "Best model path": bestModelPath,
         "Initial num classes": initial_num_classes,
         "Dataset": dataset,
-        "Model": modelName,
-
+        "Model": modelName
     }
 
     # DEFINE THE EVALUATION PLUGIN
@@ -165,20 +175,25 @@ if __name__ == "__main__":
         loss_metrics( minibatch=True, epoch=True, experience=True),
         timing_metrics(minibatch=True, epoch=True, epoch_running=True),
         RecallAtKPluginSingleTask(),
-        RecallAtKPluginAllTasks(),
-        CheckpointPluginMetric(bestModelPath),
+        #RecallAtKPluginAllTasks(),
+        RecallAtKPluginAllTasksAndCheckpoint(bestModelPath),
+        #CheckpointPluginMetric(bestModelPath),
         MinibatchTripletLoss(),
         MinibatchCELoss(),
         MinibatchKDLoss(),
         MinibatchMMDLoss(),
         MinibatchGlobalLoss(),
         MinibatchCoralLoss(),
+        MinibatchCenterDistLoss(),
+        MinibatchFeatsDistLoss(),
         EpochTripletLoss(),
         EpochCELoss(),
         EpochKDLoss(),
         EpochMMDLoss(),
         EpochGlobalLoss(),
         EpochCoralLoss(),
+        EpochCenterDistLoss(),
+        EpochFeatsDistLoss(),
         MyEvalExpAccuracy(),
         #PlotFeaturesPlugin(class_names),
         #LRPlugin(),
